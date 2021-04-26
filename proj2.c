@@ -11,8 +11,16 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <time.h>
+#include <errno.h>
 #include <semaphore.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
+#include <sys/stat.h>
+#include <signal.h>
 
+#define shmem_key 0x6543210
 
 ///'help' message, pretty self-explanatory
 const char *helpmsg =
@@ -31,6 +39,17 @@ const char *helpmsg =
     "\n"
     " All arguments have to be whole numbers."
     "\n";
+
+/// shared memory
+typedef struct {
+    int action;         // action counter
+    int reindeersReady; // ready reindeers
+
+	sem_t elf; 	// used for santa to wait on the elf speech
+	sem_t reindeer;  	// used by santa to weight on satisfaction from each elf
+	sem_t santa; // protects elf counter
+} sharedMem;
+
 
 /// GLOBAL VARIABLES
 int NE = 0;
@@ -73,10 +92,30 @@ void argsLoad(char* argv[]){
 	}
 }
 
+void santaFunc(sharedMem* s){
+    printf("%-3d   I'm Santa\n",s->action++);
+    while(1){
+        if (s->reindeersReady == NR){
+            printf("%-3d   Hohoho, Merry Christmas!\n",s->action++);
+            exit(0);
+        }
+    }
+}
 
+void elfFunc(int num, sharedMem *s){
+    printf("%-3d   I'm elf #%d\n",s->action++, num);
+    usleep((random() % (TE + 1)) * 1000);
+    printf("%-3d   Elf #%d did something\n",s->action++, num);
+    exit(0);
+}
 
-
-
+void reindeerFunc(int num, sharedMem* s){
+    printf("%-3d   I'm reindeer #%d\n",s->action++, num);
+    usleep((random() % (TR + 1)) * 1000);
+    printf("%-3d   Reindeer #%d ready\n",s->action++, num);
+    s->reindeersReady++;
+    exit(0);
+}
 
 /// MAIN
 int main(int argc, char *argv[])
@@ -87,13 +126,62 @@ int main(int argc, char *argv[])
  */
     argsCheck(argc, argv);
     argsLoad(argv);
-/**
- * Values read successfully, open file 'proj2.out' for writing
- */
-	fp = fopen("proj2.out", "w"); /// open file 'proj2.out' for writing
-    //fprintf(fp,"%d\n",n); -- this is how to write to the file
+// Values read successfully, open file 'proj2.out' for writing
+    fp = fopen("proj2.out", "w");
+    //fprintf(fp,"%d\n",n); -- this is how to write into the file
+
+    int id;
+    sharedMem *shmem;
+
+    id = shmget(shmem_key, 20 * sizeof(sharedMem), IPC_CREAT | 0644);
+    shmem = (sharedMem *) shmat(id, NULL, 0);
+
+
+    int ids = fork();
+    if (ids == -1) {
+        printf("Fork error for Santa");
+    } else if (ids == 0) {
+        santaFunc(shmem);
+    }
+
+    int more;
+    if (NE > NR){
+        more = NE;
+    } else {
+        more = NR;
+    }
+
+    for (int i = 1, j = 1, l = 1; l <= more+1; i++, j++, l++) {
+        if (i < NE+1){
+            int ide = fork();
+            if (ide == -1) {
+                printf("Fork error (elf #%d)", i);
+                exit (1);
+            } else if (ide == 0) {
+                elfFunc(i, shmem);
+            }
+        }
+        if (j < NR+1){
+            int idr = fork();
+            if (idr == -1){
+                printf("Fork error (reindeer #%d)", j);
+                exit (1);
+            } else if (idr == 0) {
+                reindeerFunc(j, shmem);
+            }
+        }
+    }
+    /**if (fork() == -1) {
+
+    } else if ()**/
+
+    shmdt(shmem);
+    shmctl(id, IPC_RMID, NULL);
+
+    while (wait(NULL) != -1 || errno != ECHILD); // wait for all child processes to finish
 
     //auxiliary print just for checking
-    printf("NE = %d\nNR = %d\nTE = %d\nTR = %d\n",NE,NR,TE,TR);
+    printf("\nNE = %d\nNR = %d\nTE = %d\nTR = %d\n",NE,NR,TE,TR);
+    
     return 0;
 }
