@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <stdbool.h>
 #include <pthread.h>
 #include <time.h>
 #include <errno.h>
@@ -42,12 +43,22 @@ const char *helpmsg =
 
 /// shared memory
 typedef struct {
-    int action;         // action counter
-    int reindeersReady; // ready reindeers
+    int action;             // action counter
+    int reindeersReady;     // ready reindeers
+    int reindeersHitched;   // hitched reindeers
+    int inFrontOfWorkshop;  // elves in queue
+    int doorSign;           // before Santa hitches up all reindeers, he pust a sign on the workshop which reads "Christmas - closed!"
+    int helpedElves;
 
-	sem_t elf; 	// used for santa to wait on the elf speech
-	sem_t reindeer;  	// used by santa to weight on satisfaction from each elf
-	sem_t santa; // protects elf counter
+    sem_t writing;
+    sem_t elfMutex;         // used by elves to prevent other elves from entering the workshop while they're being helped by Santa
+    sem_t elfHelped;
+    sem_t elvesHelpAcknowledged;
+    sem_t reindeerMutex;
+	sem_t mutex;
+	sem_t santaSem;
+    sem_t getHitched;
+    sem_t allHitched;
 } sharedMem;
 
 
@@ -57,6 +68,8 @@ int NR = 0;
 int TE = 0;
 int TR = 0;
 
+sharedMem *shmem;
+
 FILE *fp;
 
 /// FUNCTIONS
@@ -65,13 +78,13 @@ void argsCheck(int argc, char* argv[]){
     long val;
     char *next;
 	if(argc!=5){ //test for number of arguments and floats/non-number characters
-        printf("%s",helpmsg);
+        fprintf(stderr,"%s",helpmsg);
         exit(1);
     }
     for (int i = 1; i < argc; i++) { //process all arguments one-by-one
         val = strtol (argv[i], &next, 10); //get value of arguments, stopping when NoN encountered
         if ((val%1 != 0) || (next == argv[i]) || (*next != '\0')) { // Check for empty string and characters left after conversion
-            printf("%s",helpmsg);
+            fprintf(stderr,"%s",helpmsg);
             exit(1);
         }
     }
@@ -87,101 +100,256 @@ void argsLoad(char* argv[]){
         (TE < 0 || TE > 1000)  || //0 <= TE <= 1000
         (TR < 0 || TR > 1000))    //0 <= TR <= 1000
 	{
-		printf("%s",helpmsg); /// print help
+		fprintf(stderr,"%s",helpmsg); /// print help
 		exit(1);
 	}
 }
 
-void santaFunc(sharedMem* s){
-    printf("%-3d   I'm Santa\n",s->action++);
+void freeShmem(sharedMem *shmem, int id){
+    shmdt(shmem);
+    shmctl(id, IPC_RMID, NULL);
+}
+
+void initSemaphores(sharedMem* shmem, int id){
+    bool err = false;
+
+    if (sem_init(&(shmem->writing),1,1) < 0) {err = true;};
+    if (sem_init(&(shmem->elfMutex),1,1) < 0) {err = true;};
+    if (sem_init(&(shmem->elfHelped),1,0) < 0) {err = true;};
+    if (sem_init(&(shmem->elvesHelpAcknowledged),1,0) < 0) {err = true;};
+    if (sem_init(&(shmem->reindeerMutex),1,1) < 0) {err = true;};
+    if (sem_init(&(shmem->mutex),1,1) < 0) {err = true;};
+    if (sem_init(&(shmem->santaSem),1,0) < 0) {err = true;};
+    if (sem_init(&(shmem->getHitched),1,0) < 0) {err = true;}; //begin at 0, santa sem_posts NR times, all reindeers get hitched NR times (sem_wait)
+    if (sem_init(&(shmem->allHitched),1,0) < 0) {err = true;};
+
+    shmem->helpedElves = 0;
+    shmem->action = 1;
+    shmem->reindeersHitched = 0;
+    shmem->reindeersReady = 0;
+    shmem->inFrontOfWorkshop = 0;
+    shmem->doorSign = 0;
+
+    if (err == true){
+        fprintf(stderr,"Error initializing semaphores\n");
+        freeShmem(shmem,id);
+        exit (1);
+    }
+}
+
+void santaFunc(sharedMem* shmem){
     while(1){
-        if (s->reindeersReady == NR){
-            printf("%-3d   Hohoho, Merry Christmas!\n",s->action++);
+        sem_wait(&(shmem->writing));
+            fprintf(fp,"%d: Santa: going to sleep\n",shmem->action++);
+            fflush(fp); //forces immediate writing
+        sem_post(&(shmem->writing));
+
+        sem_wait(&(shmem->santaSem));
+
+        sem_wait(&(shmem->mutex));
+            if (shmem->reindeersReady == NR){
+                sem_wait(&(shmem->writing));
+                    fprintf(fp,"%d: Santa: closing workshop\n",shmem->action++);
+                    fflush(fp); //forces immediate writing
+                sem_post(&(shmem->writing));
+
+                shmem->doorSign = 1; //close workshop
+
+                for (int j = 0; j < NE; j++){
+                    sem_post(&(shmem->elfHelped));
+                }
+
+                for (int i = 0; i < NR; i++){ //release NR number of times
+                    sem_post(&(shmem->getHitched));
+                }
+
+                sem_post(&(shmem->mutex));
+                sem_wait(&(shmem->allHitched)); //wait for all reindeers to get hitched
+
+                sem_wait(&(shmem->writing));
+                    fprintf(fp,"%d: Santa: Christmas started\n",shmem->action++);
+                    fflush(fp); //forces immediate writing
+                sem_post(&(shmem->writing));                
+
+                exit(0); //all done, exit process
+
+            } else if (shmem->inFrontOfWorkshop == 3){
+                shmem->inFrontOfWorkshop = 0;
+                sem_wait(&(shmem->writing));
+                    fprintf(fp,"%d: Santa: helping elves\n",shmem->action++);
+                    fflush(fp); //forces immediate writing
+                sem_post(&(shmem->writing));
+
+                for (int i = 0; i < 3; i++){ //release 3 number of times
+                    sem_post(&(shmem->elfHelped));
+                }
+
+                sem_post(&(shmem->mutex));
+                sem_wait(&(shmem->elvesHelpAcknowledged));
+            }
+    }
+}
+
+void elfFunc(int num, sharedMem* shmem){
+    sem_wait(&(shmem->writing));
+        fprintf(fp,"%d: Elf %d: started\n",shmem->action++, num);
+        fflush(fp); //forces immediate writing
+    sem_post(&(shmem->writing));
+
+    while(1){
+        usleep(rand() % (TE + 1) * 1000); // interval <0,TE>
+        if (shmem->doorSign != 1){
+            sem_wait(&(shmem->writing));
+                fprintf(fp,"%d: Elf %d: need help\n",shmem->action++, num);
+                fflush(fp); //forces immediate writing
+            sem_post(&(shmem->writing));
+        }
+
+        sem_wait(&(shmem->elfMutex));
+        sem_wait(&(shmem->mutex));
+
+        shmem->inFrontOfWorkshop++;
+        if (shmem->inFrontOfWorkshop == 3){
+            sem_post(&(shmem->santaSem));
+        } else {
+            sem_post(&(shmem->elfMutex));
+        }
+
+        sem_post(&(shmem->mutex));
+        sem_wait(&(shmem->elfHelped));
+        sem_wait(&(shmem->mutex));
+
+        if (shmem->doorSign != 1){
+            sem_wait(&(shmem->writing));
+                fprintf(fp,"%d: Elf %d: get help\n",shmem->action++, num);
+                fflush(fp); //forces immediate writing
+            sem_post(&(shmem->writing));
+            shmem->helpedElves++;
+            if (shmem->helpedElves == 3){
+                shmem->helpedElves = 0;
+                sem_post(&(shmem->elvesHelpAcknowledged));
+                sem_post(&(shmem->elfMutex));
+            }
+            sem_post(&(shmem->mutex));
+        } else {
+            sem_wait(&(shmem->writing));
+                fprintf(fp,"%d: Elf %d: taking holidays\n",shmem->action++, num);
+                fflush(fp); //forces immediate writing
+            sem_post(&(shmem->writing));
+            shmem->helpedElves++;
+            if (shmem->helpedElves == 3){
+                shmem->helpedElves = 0;
+                sem_post(&(shmem->elvesHelpAcknowledged));
+                sem_post(&(shmem->elfMutex));
+            }
+            sem_post(&(shmem->mutex));
             exit(0);
         }
     }
 }
 
-void elfFunc(int num, sharedMem *s){
-    printf("%-3d   I'm elf #%d\n",s->action++, num);
-    usleep((random() % (TE + 1)) * 1000);
-    printf("%-3d   Elf #%d did something\n",s->action++, num);
-    exit(0);
-}
+void reindeerFunc(int num, sharedMem* shmem){
+    sem_wait(&(shmem->writing));
+        fprintf(fp,"%d: RD %d: rstarted\n",shmem->action++, num);
+        fflush(fp); //forces immediate writing
+    sem_post(&(shmem->writing));
 
-void reindeerFunc(int num, sharedMem* s){
-    printf("%-3d   I'm reindeer #%d\n",s->action++, num);
-    usleep((random() % (TR + 1)) * 1000);
-    printf("%-3d   Reindeer #%d ready\n",s->action++, num);
-    s->reindeersReady++;
+    usleep((rand() %(TR/2 + 1) + TR/2) * 1000); // interval <TR/2,TR>
+
+    sem_wait(&(shmem->writing));
+        fprintf(fp,"%d: Reindeer %d: return home\n",shmem->action++, num);
+        fflush(fp); //forces immediate writing
+    sem_post(&(shmem->writing));
+
+    sem_wait(&(shmem->reindeerMutex));
+        shmem->reindeersReady++;
+    sem_post(&(shmem->reindeerMutex));
+
+    if (shmem->reindeersReady == NR){
+        sem_post(&(shmem->santaSem));
+    }
+
+    sem_wait(&(shmem->getHitched));
+    sem_wait(&(shmem->writing));
+        shmem->reindeersHitched++;
+        fprintf(fp,"%d: Reindeer %d: get hitched\n",shmem->action++, num);
+        fflush(fp); //forces immediate writing
+    sem_post(&(shmem->writing));
+
+    if (shmem->reindeersHitched == NR){
+        sem_post(&(shmem->allHitched));
+    }
+
     exit(0);
 }
 
 /// MAIN
 int main(int argc, char *argv[])
 {
-/**
- * Storing values from standard input. All parametres need to be given as whole numbers in their respective ranges, 
- * else the program prints the help message to standard error output and exits.
- */
+/**Storing values from standard input. All parametres need to be given as whole numbers in their respective ranges, 
+ * else the program prints the help message to standard error output and exits. */
     argsCheck(argc, argv);
     argsLoad(argv);
 // Values read successfully, open file 'proj2.out' for writing
     fp = fopen("proj2.out", "w");
     //fprintf(fp,"%d\n",n); -- this is how to write into the file
-
+// Use current time as seed for random number generator
+    srand(time(0));
+// Initialize shared memory
     int id;
-    sharedMem *shmem;
 
     id = shmget(shmem_key, 20 * sizeof(sharedMem), IPC_CREAT | 0644);
     shmem = (sharedMem *) shmat(id, NULL, 0);
+// Initialize semaphores
+    initSemaphores(shmem, id);
+// Create child processes for Santa, Elves and Reindeers
 
-
-    int ids = fork();
-    if (ids == -1) {
-        printf("Fork error for Santa");
-    } else if (ids == 0) {
+    int idS = fork();
+    if (idS == -1) {
+        fprintf(stderr,"Fork error for Santa\n");
+        freeShmem(shmem,id);
+        exit (1);
+    } else if (idS == 0) {
         santaFunc(shmem);
     }
-
+    
     int more;
     if (NE > NR){
         more = NE;
     } else {
         more = NR;
     }
-
+    
     for (int i = 1, j = 1, l = 1; l <= more+1; i++, j++, l++) {
         if (i < NE+1){
-            int ide = fork();
-            if (ide == -1) {
-                printf("Fork error (elf #%d)", i);
+            int elfID = fork();
+            if (elfID == -1) {
+                fprintf(stderr,"Fork error for elf #%d\n", i);
+                freeShmem(shmem,id);
                 exit (1);
-            } else if (ide == 0) {
+            } else if (elfID == 0) { //if we're a child process
                 elfFunc(i, shmem);
             }
         }
         if (j < NR+1){
-            int idr = fork();
-            if (idr == -1){
-                printf("Fork error (reindeer #%d)", j);
+            int rdID = fork();
+            if (rdID == -1){
+                fprintf(stderr,"Fork error for reindeer #%d\n", j);
+                freeShmem(shmem,id);
                 exit (1);
-            } else if (idr == 0) {
+            } else if (rdID == 0) { //if we're a child process
                 reindeerFunc(j, shmem);
             }
         }
     }
-    /**if (fork() == -1) {
 
-    } else if ()**/
+// Wait for all child processes to die
+    while (wait(NULL) != -1 || errno != ECHILD);
+// Release and clear the shared memory
+    freeShmem(shmem,id);
 
-    shmdt(shmem);
-    shmctl(id, IPC_RMID, NULL);
-
-    while (wait(NULL) != -1 || errno != ECHILD); // wait for all child processes to finish
-
-    //auxiliary print just for checking
-    printf("\nNE = %d\nNR = %d\nTE = %d\nTR = %d\n",NE,NR,TE,TR);
+//auxiliary print just for checking args (comment out in finished project)
+    //printf("\nNE = %d\nNR = %d\nTE = %d\nTR = %d\n",NE,NR,TE,TR);
     
     return 0;
 }
