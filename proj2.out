@@ -8,72 +8,87 @@
 8: Elf 4: started
 9: RD 4: rstarted
 10: Elf 5: started
-11: Elf 1: need help
-12: RD 5: rstarted
+11: RD 5: rstarted
+12: Elf 1: need help
 13: Elf 6: started
-14: Elf 2: need help
+14: RD 6: rstarted
 15: Elf 7: started
-16: Elf 8: started
-17: Elf 9: started
-18: Elf 3: need help
-19: Santa: helping elves
-20: Elf 3: get help
-21: Elf 1: get help
-22: Elf 2: get help
-23: Santa: going to sleep
-24: Elf 10: started
-25: Elf 4: need help
-26: Elf 5: need help
-27: Elf 6: need help
-28: Santa: helping elves
-29: Elf 4: get help
-30: Elf 6: get help
-31: Elf 5: get help
-32: Santa: going to sleep
-33: Elf 7: need help
-34: Elf 8: need help
-35: Reindeer 1: return home
-36: Elf 1: need help
-37: Elf 3: need help
+16: RD 7: rstarted
+17: RD 1: return home
+18: Elf 8: started
+19: RD 8: rstarted
+20: Elf 2: need help
+21: RD 2: return home
+22: Elf 9: started
+23: RD 9: rstarted
+24: Elf 3: need help
+25: Santa: helping elves
+26: Elf 1: get help
+27: Elf 2: get help
+28: Elf 3: get help
+29: Santa: going to sleep
+30: Elf 10: started
+31: RD 3: return home
+32: RD 10: rstarted
+33: RD 4: return home
+34: Elf 4: need help
+35: Elf 5: need help
+36: RD 5: return home
+37: Elf 6: need help
 38: Santa: helping elves
-39: Elf 7: get help
-40: Elf 1: get help
-41: Elf 8: get help
-42: Elf 2: need help
-43: Santa: going to sleep
-44: Elf 9: need help
-45: Santa: helping elves
-46: Elf 9: get help
-47: Elf 3: get help
+39: Elf 5: get help
+40: Elf 4: get help
+41: Elf 6: get help
+42: Santa: going to sleep
+43: RD 6: return home
+44: Elf 2: need help
+45: Elf 3: need help
+46: Elf 1: need help
+47: Santa: helping elves
 48: Elf 2: get help
-49: Santa: going to sleep
-50: Elf 10: need help
-51: Reindeer 2: return home
-52: Reindeer 3: return home
-53: Reindeer 4: return home
-54: Elf 4: need help
-55: Elf 6: need help
-56: Santa: helping elves
-57: Elf 10: get help
-58: Elf 4: get help
-59: Elf 6: get help
-60: Santa: going to sleep
-61: Elf 5: need help
-62: Reindeer 5: return home
-63: Santa: closing workshop
-64: Reindeer 2: get hitched
-65: Elf 5: taking holidays
-66: Reindeer 3: get hitched
-67: Reindeer 4: get hitched
-68: Reindeer 5: get hitched
-69: Reindeer 1: get hitched
-70: Santa: Christmas started
-71: Elf 8: taking holidays
-72: Elf 7: taking holidays
-73: Elf 9: taking holidays
-74: Elf 10: taking holidays
-75: Elf 1: taking holidays
-76: Elf 2: taking holidays
-77: Elf 3: taking holidays
-78: Elf 4: taking holidays
-79: Elf 6: taking holidays
+49: Elf 1: get help
+50: Elf 3: get help
+51: Santa: going to sleep
+52: Elf 7: need help
+53: RD 7: return home
+54: Elf 8: need help
+55: RD 8: return home
+56: Elf 9: need help
+57: Santa: helping elves
+58: Elf 7: get help
+59: Elf 8: get help
+60: Elf 9: get help
+61: Santa: going to sleep
+62: RD 9: return home
+63: Elf 6: need help
+64: Elf 4: need help
+65: Elf 5: need help
+66: Santa: helping elves
+67: Elf 6: get help
+68: Elf 4: get help
+69: Elf 5: get help
+70: Santa: going to sleep
+71: Elf 10: need help
+72: RD 10: return home
+73: Santa: closing workshop
+74: RD 2: get hitched
+75: RD 5: get hitched
+76: RD 9: get hitched
+77: RD 3: get hitched
+78: RD 10: get hitched
+79: Elf 10: taking holidays
+80: RD 4: get hitched
+81: RD 6: get hitched
+82: RD 7: get hitched
+83: RD 8: get hitched
+84: RD 1: get hitched
+85: Santa: Christmas started
+86: Elf 9: taking holidays
+87: Elf 8: taking holidays
+88: Elf 7: taking holidays
+89: Elf 3: taking holidays
+90: Elf 1: taking holidays
+91: Elf 2: taking holidays
+92: Elf 5: taking holidays
+93: Elf 4: taking holidays
+94: Elf 6: taking holidays
