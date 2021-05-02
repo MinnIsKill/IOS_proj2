@@ -226,6 +226,7 @@ void santaFunc(sharedMem* shmem){
                     fflush(fp); //forces immediate writing
                 sem_post(&(shmem->writing));                
 
+                fclose(fp);
                 exit(0); //all done, exit process
 
             } else if (shmem->inFrontOfWorkshop == 3){ //Santa woken up by elves
@@ -261,12 +262,13 @@ void elfFunc(int num, sharedMem* shmem){
 
     while(1){
         usleep(rand() % (TE + 1) * 1000); //interval <0,TE>, simulates elf's working alone
-        if (shmem->doorSign != 1){        //if workshop's not yet closed
+        //if (shmem->doorSign != 1){        //if workshop's not yet closed (thought the program wasn't supposed to
+                                            //print this but turns out I was wrong, based on the example in projekt2.pdf)
             sem_wait(&(shmem->writing));
                 fprintf(fp,"%d: Elf %d: need help\n",shmem->action++, num);
                 fflush(fp); //forces immediate writing
             sem_post(&(shmem->writing));
-        }
+        //}
 
         sem_wait(&(shmem->elfMutex)); //if there aren't three elves in queue yet, enter queue
         sem_wait(&(shmem->mutex));
@@ -306,6 +308,7 @@ void elfFunc(int num, sharedMem* shmem){
                 sem_post(&(shmem->elfMutex));
             }
             sem_post(&(shmem->mutex));
+            fclose(fp);
             exit(0); //all done, exit process
         }
     }
@@ -351,6 +354,7 @@ void reindeerFunc(int num, sharedMem* shmem){
         sem_post(&(shmem->allHitched)); //signal Santa the sleigh is ready
     }
 
+    fclose(fp);
     exit(0); //all done, exit process
 }
 
