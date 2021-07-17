@@ -1,6 +1,6 @@
 /**
  * FILE:    proj2.c
- * AUTHOR:  Vojtech Kalis, xkalis03@fit.vutbr.cz
+ * AUTHOR:  Vojtech Kalis, xkalis03@stud.fit.vutbr.cz
  * NAME:    Project #2 for IOS (Operation Systems) VUT FIT
  * DATE:    28.04.2021
  */
@@ -62,9 +62,9 @@ typedef struct {
     sem_t elfHelped;        // semaphore used by elves to signal they received help
     sem_t elvesHelpAcknowledged; // semaphore used by elves in workshop to tell Santa that all of them received help
     sem_t reindeerMutex;    // mutex used by reindeers to prevent more than one to increment the 'reindeersReady' counter 
-	sem_t mutex;            // used by all processes to control execution (and prevent errors resulting from simultaneous 
+    sem_t mutex;            // used by all processes to control execution (and prevent errors resulting from simultaneous 
                             //   reaching into shared memory)
-	sem_t santaSem;         // semaphore used by reindeers and elves to wake up Santa
+    sem_t santaSem;         // semaphore used by reindeers and elves to wake up Santa
     sem_t getHitched;       // set by Santa and used by reindeers to get hitched to Santa's sleigh
     sem_t allHitched;       // set by the last reindeer to signal Santa that all reindeers have been hitched to the sleigh, 
                             //   and Christmas can start!
@@ -293,7 +293,7 @@ void elfFunc(int num, sharedMem* shmem){
             if (shmem->helpedElves == 3){ //if elf's the last elf to get help
                 shmem->helpedElves = 0;
                 sem_post(&(shmem->elvesHelpAcknowledged)); //tell Santa all's good
-                sem_post(&(shmem->elfMutex)); //restard queue
+                sem_post(&(shmem->elfMutex)); //restart queue
             }
             sem_post(&(shmem->mutex));
         } else { //if workshop is closed and elf is in queue
